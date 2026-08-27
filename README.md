@@ -2,6 +2,8 @@
 
 FX exchange rates (Frankfurter free ECB API).
 
+Collection cron: `bash setup_cron.sh install` runs bounded Frankfurter capture every 6 hours into `data/exported/`. Lake ingest remains a separate command.
+
 Migration status: **lake-first** via shared Solo Empire
 `data_lake.product_adapter` (same path as `book-crypto-data` / `book-stock-data`).
 
