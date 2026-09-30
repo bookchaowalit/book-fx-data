@@ -26,6 +26,7 @@ Score: 8/10 -> 8.5/10 — NaN/inf/non-positive/duplicate rates are rejected befo
   now return `unknown`.
 - Verified: `tests/test_edge_cases.py` (6 of 6 behaviours fail on the old
   code); full suite 62 passed; ruff 0.15.8 + 0.16.9.
+- Bumped the `[lake]` pin `68fb5a9` -> `4c24c66` (NDJSON/BOM/U+2028/double-decode fixes); 62 passed with the new package; ruff 0.15.8 + 0.16.9 clean.
 
 ## Done in this pass (pass 3)
 
