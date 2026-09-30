@@ -1,6 +1,6 @@
 # Upgrade plan — book-fx-data
 
-Score: 7/10 -> 8/10 — lake tests now run standalone in CI via the pinned `[lake]` extra; remaining gaps are provider-parser fixtures and packaging polish.
+Score: 8/10 -> 8.5/10 — NaN/inf/non-positive/duplicate rates are rejected before Bronze/CSV, cross-rate sanity is tested, CLI codes are validated and projections are atomic; remaining gaps are packaging polish.
 
 ## Backlog
 
@@ -10,9 +10,24 @@ Score: 7/10 -> 8/10 — lake tests now run standalone in CI via the pinned `[lak
   the other book-*-data repos (same SHA everywhere).
 - P2: Add a `[project.optional-dependencies] dev` extra and a `[build-system]` table so
   `pip install -e ".[dev]"` is the single documented setup.
-- P1: Add a THB cross-rate sanity test (inverse ~= 1/rate) on the fixture rows.
+- P2: Surface the per-run `rejected_by_reason` counts in `/v1/metadata`.
 
-## Done in this pass (pass 2)
+## Done in this pass (pass 3)
+
+- New `quality` module with `clean_rates`: `rate_records_from_api`,
+  `history_records_from_api` (plus id de-dup) and the live run drop missing/NaN/inf/
+  non-positive rates and duplicate codes; zero valid rates fail before any write.
+- `detect_trend` ignores non-finite/non-positive endpoints instead of computing NaN.
+- Cross-rate sanity tests: `rate * inverse ~= 1` for records and `fixtures/exchange_rates.csv`;
+  fixture history keys are unique.
+- CLI: three-letter code validation, base removed from symbols, threshold checks (exit 2).
+- `fetch_history_raw` computes the ECB date window in UTC (was host-local time).
+- New `fsutil` module: rates CSV replaced atomically, history appended via atomic rewrite.
+- README Quick start uses `pip install -e ".[lake]"`; new "Data quality" section.
+- Verified: `pytest -q -rs` 53 passed, 0 skipped (was 40) with the `[lake]` venv; ruff
+  0.15.8 and 0.16.9 clean.
+
+## Done in pass 2
 
 - Added a `[lake]` extra pinning `solo-empire-data-lake` at `68fb5a9` (plus pyarrow/duckdb); CI
   installs `-e ".[lake]"`, asserts `data_lake` imports, and lake tests now run instead of skipping.

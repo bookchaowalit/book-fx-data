@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from . import config
+from . import quality
 
 
 def _load_shared():
@@ -128,20 +129,16 @@ def rate_records_from_api(
         except ValueError:
             pass
 
-    rates = data.get("rates") or {}
+    # Non-finite, non-positive or non-numeric rates and duplicate currency
+    # codes never reach Bronze (quality.clean_rates).
+    rates, _rejected = quality.clean_rates(data.get("rates") or {})
     records: list[dict[str, Any]] = []
     trends = trends or {}
-    for currency, rate in rates.items():
-        curr = str(currency).strip().upper()
-        if not base or not curr:
+    for curr, rate_f in rates.items():
+        if not base:
             continue
-        try:
-            rate_f = float(rate)
-            inverse = round(1 / rate_f, 6) if rate_f else ""
-        except (TypeError, ValueError):
-            rate_f = rate
-            inverse = ""
-        trend = trends.get(curr) or trends.get(currency) or {}
+        inverse = round(1 / rate_f, 6)
+        trend = trends.get(curr) or {}
         records.append(
             {
                 "id": f"{base}:{curr}",
@@ -176,10 +173,8 @@ def history_records_from_api(
                 row_event = dt.isoformat().replace("+00:00", "Z")
             except ValueError:
                 pass
-        for currency, rate in rates.items():
-            curr = str(currency).strip().upper()
-            if not curr:
-                continue
+        clean, _rejected = quality.clean_rates(rates)
+        for curr, rate in clean.items():
             records.append(
                 {
                     "id": f"{base}:{curr}:{rate_date}",
@@ -190,6 +185,8 @@ def history_records_from_api(
                     "event_time": row_event,
                 }
             )
+    # Repeated dates in a timeseries would otherwise duplicate ids.
+    records, _duplicates = quality.dedupe_by_key(records)
     return records
 
 
