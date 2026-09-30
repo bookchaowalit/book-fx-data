@@ -20,7 +20,10 @@ def finite_number(value: Any) -> Optional[float]:
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        number = float(value)
+        try:
+            number = float(value)
+        except OverflowError:  # an int beyond float range (JSON allows 1e400 digits)
+            return None
     elif isinstance(value, str):
         text = value.strip()
         if not text:
@@ -81,7 +84,8 @@ def clean_rates(rates: Any) -> tuple[dict[str, float], list[dict[str, Any]]]:
             rejected.append({"id": "", "reason": "missing_currency"})
             continue
         number = finite_number(rate)
-        if number is None or number <= 0:
+        # A subnormal rate is "positive" but its inverse overflows to inf.
+        if number is None or number <= 0 or not math.isfinite(1 / number):
             rejected.append({"id": code, "reason": "invalid_rate"})
             continue
         if code in clean:

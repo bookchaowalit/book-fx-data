@@ -134,13 +134,16 @@ def detect_trend(history: list, symbol: str, lookback: int = 7) -> dict:
         return {"direction": "unknown", "change_pct": 0}
 
     recent = history[-lookback:]
-    first_rate = finite_number(recent[0].get("rates", {}).get(symbol))
-    last_rate = finite_number(recent[-1].get("rates", {}).get(symbol))
+    # "rates": null is possible in a timeseries day; .get("rates", {}) kept None.
+    first_rate = finite_number((recent[0].get("rates") or {}).get(symbol))
+    last_rate = finite_number((recent[-1].get("rates") or {}).get(symbol))
 
     if not first_rate or not last_rate or first_rate <= 0 or last_rate <= 0:
         return {"direction": "unknown", "change_pct": 0}
 
     change_pct = ((last_rate - first_rate) / first_rate) * 100
+    if not math.isfinite(change_pct):
+        return {"direction": "unknown", "change_pct": 0}
     if change_pct > 0.5:
         direction = "strengthening"
     elif change_pct < -0.5:

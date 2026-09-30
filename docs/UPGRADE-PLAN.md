@@ -12,6 +12,21 @@ Score: 8/10 -> 8.5/10 — NaN/inf/non-positive/duplicate rates are rejected befo
   `pip install -e ".[dev]"` is the single documented setup.
 - P2: Surface the per-run `rejected_by_reason` counts in `/v1/metadata`.
 
+## Done in this pass (pass 4: edge cases)
+
+- `config.env_bool` returned False for anything but a true-ish word, so
+  `FREE_ONLY=` (blank line in .env/compose) or a typo silently disabled the
+  free-only guard; blank/unrecognised values now keep the safe default.
+- `quality.finite_number` raised `OverflowError` for a JSON integer beyond
+  float range; `clean_rates` now reports it as `invalid_rate`. A subnormal
+  positive rate (`1e-320`) passed and produced `inverse: inf` in Bronze; such
+  rates are rejected too.
+- `ingest.detect_trend` crashed with `AttributeError` on a timeseries day with
+  `"rates": null`, and reported an infinite change as "strengthening"; both
+  now return `unknown`.
+- Verified: `tests/test_edge_cases.py` (6 of 6 behaviours fail on the old
+  code); full suite 62 passed; ruff 0.15.8 + 0.16.9.
+
 ## Done in this pass (pass 3)
 
 - New `quality` module with `clean_rates`: `rate_records_from_api`,
