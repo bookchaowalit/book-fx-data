@@ -26,6 +26,12 @@ Score: 8/10 -> 8.5/10 — NaN/inf/non-positive/duplicate rates are rejected befo
 - README Quick start uses `pip install -e ".[lake]"`; new "Data quality" section.
 - Verified: `pytest -q -rs` 53 passed, 0 skipped (was 40) with the `[lake]` venv; ruff
   0.15.8 and 0.16.9 clean.
+- Refresh auth: `/v1/refresh` compares the bearer token with `hmac.compare_digest`
+  (`_refresh_token_ok`) instead of `==`, which leaked the matching prefix
+  length through timing; `tests/test_refresh_token_compare.py` pins it.
+- CSV projection stamps (`_projection_timestamp`) are UTC; they were host-local
+  but `product_store.parse_ts` reads naive stamps as UTC, so freshness was off
+  by the host offset (`tests/test_projection_timestamp_utc.py`).
 
 ## Done in pass 2
 
