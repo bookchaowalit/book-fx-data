@@ -11,7 +11,11 @@ from . import config
 
 def _load_shared():
     cur = config.PROJECT_ROOT.resolve()
-    for parent in [cur, *cur.parents]:
+    candidates = [cur, *cur.parents]
+    if config.SOLO_EMPIRE_ROOT:
+        # Explicit parent checkout (e.g. sibling clone) wins over the walk.
+        candidates.insert(0, Path(config.SOLO_EMPIRE_ROOT).expanduser().resolve())
+    for parent in candidates:
         scripts = parent / "infra" / "scripts"
         if (scripts / "data_lake" / "product_adapter.py").is_file():
             if str(scripts) not in sys.path:
@@ -69,7 +73,12 @@ def utc_now_iso() -> str:
 
 
 def find_solo_empire_root(start: Optional[Path] = None) -> Optional[Path]:
-    return _pa_mod().find_solo_empire_root(
+    """Return the Solo Empire root, or ``None`` when the shared adapter is absent."""
+    try:
+        pa = _pa_mod()
+    except ImportError:
+        return None
+    return pa.find_solo_empire_root(
         start or config.PROJECT_ROOT,
         solo_empire_root=config.SOLO_EMPIRE_ROOT,
     )
