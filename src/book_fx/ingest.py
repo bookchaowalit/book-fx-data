@@ -12,10 +12,11 @@ Lake-first flow (shared product_adapter with crypto/stock):
 from __future__ import annotations
 
 import argparse
-import csv
 import json
+import math
+import re
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -49,6 +50,8 @@ try:
     )
     from .store import seed_fixtures
     from . import lake as _lake
+    from .fsutil import atomic_append_csv, atomic_write_csv
+    from .quality import clean_rates, finite_number, summarize_rejections
 except ImportError:  # pragma: no cover
     _dp_config = None
     _lake = None
@@ -103,8 +106,10 @@ def fetch_latest(base: str, symbols: list) -> dict:
 
 def fetch_history_raw(base: str, symbols: list[str], days: int = 30) -> tuple[bytes, list]:
     require_provider("frankfurter_public")
-    end_date = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    # ECB dates are UTC calendar days; a host-local clock can skip or repeat one.
+    today = datetime.now(timezone.utc)
+    end_date = today.strftime("%Y-%m-%d")
+    start_date = (today - timedelta(days=days)).strftime("%Y-%m-%d")
     symbols_str = ",".join(symbols)
     url = f"{FRANKFURTER_BASE}/{start_date}..{end_date}"
     params = {"from": base, "to": symbols_str}
@@ -129,13 +134,16 @@ def detect_trend(history: list, symbol: str, lookback: int = 7) -> dict:
         return {"direction": "unknown", "change_pct": 0}
 
     recent = history[-lookback:]
-    first_rate = recent[0]["rates"].get(symbol)
-    last_rate = recent[-1]["rates"].get(symbol)
+    # "rates": null is possible in a timeseries day; .get("rates", {}) kept None.
+    first_rate = finite_number((recent[0].get("rates") or {}).get(symbol))
+    last_rate = finite_number((recent[-1].get("rates") or {}).get(symbol))
 
-    if not first_rate or not last_rate:
+    if not first_rate or not last_rate or first_rate <= 0 or last_rate <= 0:
         return {"direction": "unknown", "change_pct": 0}
 
     change_pct = ((last_rate - first_rate) / first_rate) * 100
+    if not math.isfinite(change_pct):
+        return {"direction": "unknown", "change_pct": 0}
     if change_pct > 0.5:
         direction = "strengthening"
     elif change_pct < -0.5:
@@ -152,7 +160,9 @@ def detect_trend(history: list, symbol: str, lookback: int = 7) -> dict:
 
 
 def _projection_timestamp() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # UTC: readers (product_store.parse_ts / _freshness) treat naive stamps as
+    # UTC, so a host-local stamp looked hours fresher (or older) than it was.
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def project_rates_csv(
@@ -188,10 +198,7 @@ def project_rates_csv(
                 "updated_at": now,
             }
         )
-    with open(rates_file, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    atomic_write_csv(rates_file, fieldnames, rows)
     print(f"  Projected {len(rows)} rates → {rates_file}")
     return rates_file
 
@@ -209,12 +216,7 @@ def project_history_csv(data: dict, output_dir: Path) -> Path:
         }
         for currency, rate in data["rates"].items()
     ]
-    file_exists = history_file.exists()
-    with open(history_file, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if not file_exists:
-            writer.writeheader()
-        writer.writerows(rows)
+    atomic_append_csv(history_file, fieldnames, rows)
     print(f"  Projected +{len(rows)} history rows → {history_file}")
     return history_file
 
@@ -325,7 +327,12 @@ def run_live_ingest(
 
     print("  Fetching latest rates...")
     raw_latest, data = fetch_latest_raw(base, symbols)
+    data["rates"], rejected = clean_rates(data.get("rates"))
     print(f"  Got {len(data['rates'])} rates (date: {data['date']})")
+    if rejected:
+        print(f"  Quality: dropped {len(rejected)} rates {summarize_rejections(rejected)}")
+    if not data["rates"]:
+        raise RuntimeError("Latest payload produced zero valid rates")
 
     trends: dict[str, Any] = {}
     history_raw: Optional[bytes] = None
@@ -397,6 +404,9 @@ def run_live_ingest(
     }
 
 
+_CURRENCY_RE = re.compile(r"[A-Z]{3}")
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="Scrape exchange rates (lake-first; CSV is projection)"
@@ -429,7 +439,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
-    symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
+    base = args.base.strip().upper()
+    symbols = [
+        s for s in dict.fromkeys(s.strip().upper() for s in args.symbols.split(",") if s.strip())
+        if s != base
+    ]
+    if not _CURRENCY_RE.fullmatch(base):
+        parser.error("--base must be a three-letter currency code")
+    if not symbols:
+        parser.error("--symbols must name at least one currency other than --base")
+    bad = [s for s in symbols if not _CURRENCY_RE.fullmatch(s)]
+    if bad:
+        parser.error(f"--symbols has invalid currency codes: {','.join(bad)}")
+    if not math.isfinite(args.alert_threshold) or args.alert_threshold < 0:
+        parser.error("--alert-threshold must be a finite, non-negative number")
     output_dir = Path(args.output_dir)
 
     if getattr(args, "fixture", False) or getattr(args, "dry_run", False):
@@ -449,7 +472,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     try:
         run_live_ingest(
-            base=args.base,
+            base=base,
             symbols=symbols,
             output_dir=output_dir,
             alert_threshold=args.alert_threshold,

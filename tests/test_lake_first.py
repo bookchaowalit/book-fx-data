@@ -20,14 +20,10 @@ SAMPLE_RATES = {
 }
 
 
-def _monorepo_lake_root():
-    try:
-        return lake.find_solo_empire_root()
-    except (ImportError, ModuleNotFoundError):
-        return None
-
-
-@unittest.skipUnless(_monorepo_lake_root() is not None, "shared data_lake adapter not found")
+@unittest.skipUnless(
+    lake.shared_runtime_available(),
+    "shared data_lake runtime not installed (pip install -e .[lake])",
+)
 class NormalizeTests(unittest.TestCase):
     def test_rate_records_include_id(self):
         records = lake.rate_records_from_api(SAMPLE_RATES)
@@ -39,7 +35,10 @@ class NormalizeTests(unittest.TestCase):
             self.assertEqual(row["base"], "THB")
 
 
-@unittest.skipUnless(_monorepo_lake_root() is not None, "shared data_lake adapter not found")
+@unittest.skipUnless(
+    lake.shared_runtime_available(),
+    "shared data_lake runtime not installed (pip install -e .[lake])",
+)
 class LakeFirstOrderingTests(unittest.TestCase):
     def test_csv_not_written_when_lake_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -122,8 +121,8 @@ class LakeFirstOrderingTests(unittest.TestCase):
 
 
 @unittest.skipUnless(
-    _monorepo_lake_root() is not None,
-    "Solo Empire monorepo with data_lake not found",
+    lake.shared_runtime_available(),
+    "shared data_lake runtime not installed (pip install -e .[lake])",
 )
 class RealLakeIngestTests(unittest.TestCase):
     def test_ingest_landing_bronze_manifest_and_lineage(self):
@@ -196,13 +195,18 @@ class RealLakeIngestTests(unittest.TestCase):
 
 
 class SharedAdapterTests(unittest.TestCase):
+    @unittest.skipUnless(
+        lake.shared_runtime_available(),
+        "shared data_lake runtime not installed (pip install -e .[lake])",
+    )
     def test_uses_shared_product_adapter(self):
-        root = _monorepo_lake_root()
-        if root is None:
-            self.skipTest("not under monorepo")
-        self.assertTrue(
-            (root / "infra" / "scripts" / "data_lake" / "product_adapter.py").is_file()
-        )
+        # The product delegates to the shared adapter (installed [lake] extra or parent checkout).
+        self.assertTrue(hasattr(lake._pa_mod(), "LakeProductContract"))
+        root = lake.find_solo_empire_root()
+        if root is not None:
+            self.assertTrue(
+                (root / "infra" / "scripts" / "data_lake" / "product_adapter.py").is_file()
+            )
         self.assertEqual(config.LAKE_DOMAIN, "market")
         self.assertEqual(config.LAKE_SOURCE, "book-fx-data")
         self.assertEqual(config.SCHEMA_VERSION, "fx.v1")

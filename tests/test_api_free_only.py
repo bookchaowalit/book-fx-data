@@ -60,11 +60,10 @@ def _set_silver_mode(mode: str):
 
 def _write_fx_silver(lake_uri: str):
     root = lake.find_solo_empire_root()
-    if root is None:
-        raise RuntimeError("Solo Empire root is required for the Silver pilot")
-    scripts = root / "infra" / "scripts"
-    if str(scripts) not in sys.path:
-        sys.path.insert(0, str(scripts))
+    if root is not None:  # parent checkout fallback; else the installed [lake] extra
+        scripts = root / "infra" / "scripts"
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
     from data_lake.silver import SilverProductContract, transform_bronze_to_silver
 
     contract = SilverProductContract(
@@ -90,12 +89,15 @@ def _lake_deps_available() -> bool:
     except ImportError:
         return False
     try:
-        return lake.find_solo_empire_root() is not None
+        return lake.shared_runtime_available()
     except (ImportError, ModuleNotFoundError):
         return False
 
 
-@unittest.skipUnless(_lake_deps_available(), "pyarrow/duckdb + monorepo data_lake required")
+@unittest.skipUnless(
+    _lake_deps_available(),
+    "pyarrow/duckdb + shared data_lake runtime required (pip install -e .[lake])",
+)
 class StoreLakeTests(unittest.TestCase):
     def test_bronze_records_load(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -251,7 +253,10 @@ class StoreLakeTests(unittest.TestCase):
             self.assertIn("catalog credentials unavailable", payload["error"])
 
 
-@unittest.skipUnless(_lake_deps_available(), "pyarrow/duckdb + monorepo data_lake required")
+@unittest.skipUnless(
+    _lake_deps_available(),
+    "pyarrow/duckdb + shared data_lake runtime required (pip install -e .[lake])",
+)
 class CsvProjectionOnlyTests(unittest.TestCase):
     def test_csv_projection_helper(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -305,7 +310,10 @@ class HttpClientTests(unittest.TestCase):
             self.assertEqual(ctx.exception.kind, "timeout")
 
 
-@unittest.skipUnless(_lake_deps_available(), "pyarrow/duckdb + monorepo data_lake required")
+@unittest.skipUnless(
+    _lake_deps_available(),
+    "pyarrow/duckdb + shared data_lake runtime required (pip install -e .[lake])",
+)
 class ApiContractTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

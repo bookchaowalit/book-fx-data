@@ -110,7 +110,10 @@ history contract exists. CSV is never used by the HTTP API.
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e .
-pip install -r <solo-empire>/infra/requirements-data-lake.txt
+# Lake writes need the shared data-lake runtime: the [lake] extra installs the
+# pinned solo-empire-data-lake (plus pyarrow/duckdb); inside Solo Empire the
+# parent checkout's infra/scripts/data_lake is used instead
+pip install -e ".[lake]"
 
 python -m book_fx.ingest --fixture
 python -m book_fx.ingest --base THB --symbols USD,EUR --data-lake-uri /path/to/data/lake
@@ -147,10 +150,37 @@ ALLOW_REFRESH=false
 | `frankfurter_public` | free (ECB rates, no key) |
 | `paid_fx_feed` | blocked |
 
+## Data quality
+
+Before any Bronze or CSV write (`book_fx.quality.clean_rates`):
+
+- A rate is dropped when it is missing, non-numeric, `NaN`/`inf` or not
+  positive, or when its upper-cased currency code repeats. Latest snapshots,
+  history days and the CSV projection all use the same filter; a snapshot
+  with zero valid rates fails before the lake write. Repeated history dates
+  keep the first row per `BASE:CUR:DATE` id.
+- `inverse` is always `1/rate` (tested, including on `fixtures/`).
+- `--base`/`--symbols` are upper-cased, must be three-letter codes, and the
+  base is removed from the symbol list; `--alert-threshold` must be finite and
+  >= 0 (exit 2 otherwise).
+- CSV projections are written atomically (temp file + `os.replace`).
+
 ## Tests
 
 ```bash
-PYTHONPATH=src /path/to/solo-empire/.venv/bin/python -m unittest discover -s tests -v
+# What CI runs: the [lake] extra installs the pinned solo-empire-data-lake
+# runtime (plus pyarrow/duckdb), so Bronze/Silver lake tests run standalone
+python -m pip install -e ".[lake]" pytest ruff
+ruff check .
+python -m pytest -q -rs
+
+# Contract/policy only: without the extra, lake tests skip with a reason
+python -m pip install -e . pytest
+python -m pytest -q -rs
+
+# Inside Solo Empire: SOLO_EMPIRE_ROOT (or walking parents) makes the parent
+# checkout's infra/scripts/data_lake take precedence over the installed runtime
+SOLO_EMPIRE_ROOT=/path/to/solo-empire python -m pytest -q
 ```
 
 ## Safety
