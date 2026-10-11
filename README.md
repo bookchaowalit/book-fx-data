@@ -178,9 +178,9 @@ python -m pytest -q -rs
 python -m pip install -e . pytest
 python -m pytest -q -rs
 
-# Inside Solo Empire: SOLO_EMPIRE_ROOT (or walking parents) makes the parent
-# checkout's infra/scripts/data_lake take precedence over the installed runtime
-SOLO_EMPIRE_ROOT=/path/to/solo-empire python -m pytest -q
+# Without the [lake] extra: SOLO_DATA_LAKE_ROOT points at a solo-data-lake
+# checkout whose infra/scripts/data_lake supplies the shared runtime
+SOLO_DATA_LAKE_ROOT=/path/to/solo-data-lake python -m pytest -q
 ```
 
 ## Safety

@@ -48,7 +48,6 @@ def _contract():
         bronze_schema_version=config.LAKE_BRONZE_SCHEMA_VERSION,
         project_root=config.PROJECT_ROOT,
         data_lake_uri=config.DATA_LAKE_URI,
-        solo_empire_root=config.SOLO_EMPIRE_ROOT,
         lineage_filename=config.LINEAGE_FILE,
         datasets=(config.LAKE_DATASET_RATES, config.LAKE_DATASET_HISTORY),
     )

@@ -200,13 +200,8 @@ class SharedAdapterTests(unittest.TestCase):
         "shared data_lake runtime not installed (pip install -e .[lake])",
     )
     def test_uses_shared_product_adapter(self):
-        # The product delegates to the shared adapter (installed [lake] extra or parent checkout).
+        # The product delegates to the shared adapter (installed [lake] extra or SOLO_DATA_LAKE_ROOT).
         self.assertTrue(hasattr(lake._pa_mod(), "LakeProductContract"))
-        root = lake.find_solo_empire_root()
-        if root is not None:
-            self.assertTrue(
-                (root / "infra" / "scripts" / "data_lake" / "product_adapter.py").is_file()
-            )
         self.assertEqual(config.LAKE_DOMAIN, "market")
         self.assertEqual(config.LAKE_SOURCE, "book-fx-data")
         self.assertEqual(config.SCHEMA_VERSION, "fx.v1")
