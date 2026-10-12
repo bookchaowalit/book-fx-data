@@ -178,7 +178,7 @@ python -m pytest -q -rs
 python -m pip install -e . pytest
 python -m pytest -q -rs
 
-# Without the [lake] extra: SOLO_DATA_LAKE_ROOT points at a solo-data-lake
+# Without the [lake] extra: SOLO_DATA_LAKE_ROOT points at a data-lake
 # checkout whose infra/scripts/data_lake supplies the shared runtime
 SOLO_DATA_LAKE_ROOT=/path/to/solo-data-lake python -m pytest -q
 ```

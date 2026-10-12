@@ -61,7 +61,7 @@ Score: 8/10 -> 8.5/10 — NaN/inf/non-positive/duplicate rates are rejected befo
 - `tests/test_fixture_headers.py` pins `fixtures/*.csv` headers to the CSV projection.
 - `SharedAdapterTests` now checks the adapter via the installed runtime instead of skipping outside the parent.
 - Verified: fresh venv `pip install -e ".[lake]"` from the pinned tarball — 0 skipped of 40 with `[lake]` (was 26 of 39 skipped);
-  also against `pip install /home/user/solo-empire-data-lake`, with `SOLO_DATA_LAKE_ROOT=<solo-data-lake>`
+  also against `pip install /home/user/solo-empire-data-lake`, with `SOLO_DATA_LAKE_ROOT=<data-lake>`
   (parent adapter wins), and without the extra (lake tests skip with a reason). ruff 0.15 and 0.16 clean.
 
 ## Done in pass 1
@@ -75,4 +75,4 @@ Score: 8/10 -> 8.5/10 — NaN/inf/non-positive/duplicate rates are rejected befo
 - Fixed the remaining default-rule ruff findings; `.gitignore` covers egg-info/ruff cache.
 - README "Tests" section documents the standalone and full-lake commands.
 - Verified: clean venv with `pip install -e . pytest` (CI shape) and a full run with
-  `SOLO_DATA_LAKE_ROOT=<solo-data-lake>` + pyarrow/duckdb (all lake tests execute and pass).
+  `SOLO_DATA_LAKE_ROOT=<data-lake>` + pyarrow/duckdb (all lake tests execute and pass).
